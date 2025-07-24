@@ -1,27 +1,44 @@
 import express from "express";
-import cors from "cors"; // ✅ Add this line
-import notesRoute from './routes/notesRoute.js';
-import { connectDB } from "./config/db.js";
+import cors from "cors";
 import dotenv from "dotenv";
-import RateLimiter from "./middleware/rateLimiter.js";
+import path from "path";
+
+import notesRoutes from "./routes/notesRoute.js";
+import { connectDB } from "./config/db.js";
+import rateLimiter from "./middleware/rateLimiter.js";
 
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 5001;
+const __dirname = path.resolve();
 
-// ✅ Add CORS middleware before any routes
-app.use(cors({
-  origin: 'http://localhost:5173', // allow frontend origin
-  credentials: true // optional: allow cookies if used
-}));
+// middleware
+if (process.env.NODE_ENV !== "production") {
+  app.use(
+    cors({
+      origin: "http://localhost:5173",
+    })
+  );
+}
+app.use(express.json()); // this middleware will parse JSON bodies: req.body
+app.use(rateLimiter);
 
-// built-in middleware
-app.use(express.json());
-app.use(RateLimiter);
+// our simple custom middleware
+// app.use((req, res, next) => {
+//   console.log(`Req method is ${req.method} & Req URL is ${req.url}`);
+//   next();
+// });
 
-// routes
-app.use("/api/notes", notesRoute);
+app.use("/api/notes", notesRoutes);
+
+if (process.env.NODE_ENV === "production") {
+  app.use(express.static(path.join(__dirname, "../frontend/dist")));
+
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(__dirname, "../frontend", "dist", "index.html"));
+  });
+}
 
 connectDB().then(() => {
   app.listen(PORT, () => {
